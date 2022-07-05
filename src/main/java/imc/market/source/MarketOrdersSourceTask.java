@@ -21,23 +21,27 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.pubnub.api.PNConfiguration;
 import com.pubnub.api.PubNub;
+import com.pubnub.api.PubNubException;
 import com.pubnub.api.callbacks.SubscribeCallback;
 import com.pubnub.api.enums.PNStatusCategory;
 import com.pubnub.api.models.consumer.PNStatus;
+import com.pubnub.api.models.consumer.objects_api.channel.PNChannelMetadataResult;
+import com.pubnub.api.models.consumer.objects_api.membership.PNMembershipResult;
+import com.pubnub.api.models.consumer.objects_api.uuid.PNUUIDMetadataResult;
 import com.pubnub.api.models.consumer.pubsub.PNMessageResult;
 import com.pubnub.api.models.consumer.pubsub.PNPresenceEventResult;
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
+
+import com.pubnub.api.models.consumer.pubsub.PNSignalResult;
+import com.pubnub.api.models.consumer.pubsub.files.PNFileEventResult;
+import com.pubnub.api.models.consumer.pubsub.message_actions.PNMessageActionResult;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Connector Source task that receives and processes market orders data.
@@ -54,7 +58,7 @@ public class MarketOrdersSourceTask extends SourceTask {
     private String topicName;
 
     /** Offset generator. */
-    private AtomicLong counter = new AtomicLong();
+    private final AtomicLong counter = new AtomicLong();
 
     /** Up to 1000 last records. */
     private ArrayList<SourceRecord> lastRecords = new ArrayList<>();
@@ -67,9 +71,14 @@ public class MarketOrdersSourceTask extends SourceTask {
         topicName = props.get(MarketOrdersSourceConnector.TOPIC_NAME_PROP);
         streamName = props.get(MarketOrdersSourceConnector.STREAM_NAME_PROP);
 
-        PNConfiguration cfg = new PNConfiguration();
+        final String uuid = UUID.randomUUID().toString();
+        PNConfiguration cfg = null;
+        try {
+            cfg = new PNConfiguration(uuid);
+        } catch (PubNubException e) {
+            throw new RuntimeException(e);
+        }
         cfg.setSubscribeKey(props.get(MarketOrdersSourceConnector.STREAM_SUBSCRIPION_KEY));
-
 
         stream = new PubNub(cfg);
 
@@ -107,7 +116,7 @@ public class MarketOrdersSourceTask extends SourceTask {
          * @param nub
          * @param status
          */
-        public void status(PubNub nub, PNStatus status) {
+        public void status(@NotNull PubNub nub, PNStatus status) {
 
             if (status.getCategory() == PNStatusCategory.PNConnectedCategory) {
                 // Connect event.
@@ -131,7 +140,7 @@ public class MarketOrdersSourceTask extends SourceTask {
          * @param nub
          * @param result
          */
-        public void message(PubNub nub, PNMessageResult result) {
+        public void message(@NotNull PubNub nub, PNMessageResult result) {
             JsonElement mes = result.getMessage();
             JsonObject json = mes.getAsJsonObject();
 
@@ -158,8 +167,8 @@ public class MarketOrdersSourceTask extends SourceTask {
                 val.put("trade_type", json.get("trade_type").getAsString());
                 val.put("timestamp", new Timestamp(json.get("timestamp").getAsLong() * 1000));
 
-                Map sourcePartition = Collections.singletonMap("stream", streamName);
-                Map sourceOffset = Collections.singletonMap("position", key.get("id"));
+                Map<String, String> sourcePartition = Collections.singletonMap("stream", streamName);
+                Map<String, Object> sourceOffset = Collections.singletonMap("position", key.get("id"));
 
                 SourceRecord record = new SourceRecord(sourcePartition, sourceOffset, topicName,
                     keySchema, key, valSchema, val);
@@ -173,8 +182,38 @@ public class MarketOrdersSourceTask extends SourceTask {
          * @param nub
          * @param result
          */
-        public void presence(PubNub nub, PNPresenceEventResult result) {
+        public void presence(@NotNull PubNub nub, PNPresenceEventResult result) {
             System.out.println("Stream presence event: " + result.toString());
+        }
+
+        @Override
+        public void signal(@NotNull PubNub pubNub, @NotNull PNSignalResult pnSignalResult) {
+
+        }
+
+        @Override
+        public void uuid(@NotNull PubNub pubNub, @NotNull PNUUIDMetadataResult pnuuidMetadataResult) {
+
+        }
+
+        @Override
+        public void channel(@NotNull PubNub pubNub, @NotNull PNChannelMetadataResult pnChannelMetadataResult) {
+
+        }
+
+        @Override
+        public void membership(@NotNull PubNub pubNub, @NotNull PNMembershipResult pnMembershipResult) {
+
+        }
+
+        @Override
+        public void messageAction(@NotNull PubNub pubNub, @NotNull PNMessageActionResult pnMessageActionResult) {
+
+        }
+
+        @Override
+        public void file(@NotNull PubNub pubNub, @NotNull PNFileEventResult pnFileEventResult) {
+
         }
     }
 }

@@ -35,10 +35,6 @@ import org.apache.ignite.events.EventType;
 
 public class IMCStorage {
 
-    private Ignite ignite;
-
-    private IgniteCache gatewayCache;
-
     /**
      *
      */
@@ -48,14 +44,12 @@ public class IMCStorage {
     public void init() {
         Ignition.setClientMode(true);
 
-        ignite = Ignition.start("ignite-kafka-market-ticks/cfg/gridgain-cfg.xml");
-
-        ignite.active(true);
+        Ignite ignite = Ignition.start("gridgain-cfg.xml");
 
         CacheConfiguration cfg = new CacheConfiguration("tempCache");
         cfg.setExpiryPolicyFactory(CreatedExpiryPolicy.factoryOf(Duration.TEN_MINUTES));
 
-        gatewayCache = ignite.getOrCreateCache(cfg);
+        IgniteCache gatewayCache = ignite.getOrCreateCache(cfg);
 
         gatewayCache.query(new SqlFieldsQuery(
             "DROP TABLE IF EXISTS MarketOrder").setSchema("PUBLIC")).getAll();
